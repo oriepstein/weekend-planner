@@ -19,7 +19,7 @@
     <!-- Screen 1: start a new plan -->
     <section id="start-screen" hidden>
       <h1>Weekend Planner</h1>
-      <p class="muted">Find the weekend that works for the most friends, see who's coming, and sort out who's bringing what.</p>
+      <p class="muted">Find the weekend that works for the most friends.</p>
       <form id="create-form" class="card">
         <label>What's the trip?
           <input id="create-name" required maxlength="80" placeholder="e.g. Lake house weekend">
@@ -27,8 +27,8 @@
         <label>First date on the calendar
           <input id="create-start" type="date" required>
         </label>
-        <label>How many weeks to show
-          <input id="create-count" type="number" min="1" max="52" value="8" required>
+        <label>Last date on the calendar
+          <input id="create-end" type="date" required>
         </label>
         <button type="submit" class="primary">Start planning</button>
       </form>
@@ -60,21 +60,6 @@
         <div id="calendar"></div>
         <div id="day-detail"></div>
         <button id="more-weeks" type="button">Show 4 more weeks</button>
-      </section>
-
-      <section class="card">
-        <h2>Who's coming?</h2>
-        <div id="rsvp-area"></div>
-      </section>
-
-      <section class="card">
-        <h2>Who's bringing what?</h2>
-        <form id="item-form" class="row">
-          <input id="item-text" required maxlength="80" placeholder="e.g. Snacks, speaker, board games">
-          <button type="submit" class="primary">Add</button>
-        </form>
-        <p id="item-summary" class="muted"></p>
-        <ul id="item-list" class="list"></ul>
       </section>
 
       <p class="muted small"><a href="./">Start a different plan</a></p>

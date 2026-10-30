@@ -100,17 +100,10 @@ button {
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
 button.link { border: none; background: none; color: var(--accent); padding: 2px 4px; text-decoration: underline; }
-button.delete { color: var(--muted); text-decoration: none; }
 
-.row { display: flex; gap: 8px; }
-.row input { flex: 1; }
 
 .trip-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .trip-header h1 { margin: 0; overflow-wrap: anywhere; }
-
-.list { list-style: none; margin: 12px 0; padding: 0; }
-.list li { border-top: 1px solid var(--border); padding: 12px 0; }
-.list li:first-child { border-top: none; }
 
 /* Calendar */
 .month { margin: 14px 0 18px; }
@@ -159,7 +152,3 @@ button.delete { color: var(--muted); text-decoration: none; }
   margin-bottom: 8px;
 }
 .highlight button { margin-left: 6px; }
-
-.item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.item-text { overflow-wrap: anywhere; }
-.item-status { display: flex; align-items: center; gap: 6px; }

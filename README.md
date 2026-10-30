@@ -2,9 +2,8 @@
 
 A small website a group of friends can use together to plan a weekend away:
 
-- **Which days work?** Everyone picks their name from the group's list, then taps days on a calendar: ✓ can make it, ✗ can't, ? not sure. **Everyone's answers** shows how many said what on each day, and tapping a day shows who. The site highlights the weekend (Saturday and Sunday) that suits the most people, and anyone can tap **Lock it in**.
-- **Who's coming?** Once a weekend is locked in, everyone says *Coming*, *Maybe* or *Can't make it*.
-- **Who's bringing what?** A shared list. Anyone can add things, and people tap **I'll bring it** to claim them.
+- **Which days work?** Everyone picks their name from the group's list, then taps days on a calendar: ✓ can make it, ✗ can't, ? not sure. **Everyone's answers** shows how many said what on each day, and tapping a day shows who. The site highlights the weekend (Friday to Sunday) that suits the most people, and anyone can tap **Lock it in**.
+- **How long the calendar runs:** from the first date you pick to April 30, 2027, unless you choose another last date when starting a plan. **Show 4 more weeks** adds more.
 
 Anyone with a plan's link can see and change it. Friends don't need an account. The list of names is at the top of `app.js` (`FRIENDS`); add or remove a line there to change the group. Each plan gets its own link, so you can run several trips at once.
 

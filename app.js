@@ -47,38 +47,39 @@ function keyToDate(key) {
   return new Date(year, month - 1, day);
 }
 
-// Plans made before the calendar existed counted weekends instead of weeks.
-const weekCount = (trip) => trip.weekCount ?? trip.weekendCount;
+// The calendar's last day, unless the person starting a plan picks another.
+const DEFAULT_END_DATE = "2027-04-30";
+
+// Moves a day forward (or back, with a negative number) by some days.
+function addDays(key, days) {
+  const date = keyToDate(key);
+  date.setDate(date.getDate() + days);
+  return dateToKey(date);
+}
+
+// Plans made before there was an end date counted weeks (or, earlier, weekends) instead.
+const endDate = (trip) => trip.endDate ?? addDays(trip.startDate, (trip.weekCount ?? trip.weekendCount) * 7 - 1);
 
 // Every day shown on the calendar.
 function dayKeys(trip) {
-  const day = keyToDate(trip.startDate);
   const keys = [];
-  for (let i = 0; i < weekCount(trip) * 7; i++) {
-    keys.push(dateToKey(day));
-    day.setDate(day.getDate() + 1);
-  }
+  for (let key = trip.startDate; key <= endDate(trip); key = addDays(key, 1)) keys.push(key);
   return keys;
 }
 
 // The Saturdays on the calendar whose Sunday is on it too.
 function weekendKeys(trip) {
-  const days = dayKeys(trip);
-  return days.filter((key, i) => keyToDate(key).getDay() === 6 && i + 1 < days.length);
+  const last = endDate(trip);
+  return dayKeys(trip).filter((key) => keyToDate(key).getDay() === 6 && key < last);
 }
 
-const nextDayKey = (key) => {
-  const date = keyToDate(key);
-  date.setDate(date.getDate() + 1);
-  return dateToKey(date);
-};
+// The days of the weekend named by this Saturday that are on the calendar: Friday, Saturday, Sunday.
+const weekendDays = (key) => [addDays(key, -1), key, addDays(key, 1)].filter((day) => day >= trip.startDate);
 
 function weekendLabel(key) {
-  const saturday = keyToDate(key);
-  const sunday = new Date(saturday);
-  sunday.setDate(sunday.getDate() + 1);
-  const short = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  return `Sat ${short(saturday)} – Sun ${short(sunday)}`;
+  const days = weekendDays(key).map(keyToDate);
+  const short = (d) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return `${short(days[0])} – ${short(days.at(-1))}`;
 }
 
 // ---------- Saving and loading ----------
@@ -165,13 +166,17 @@ function show(id) {
 function showStartScreen() {
   show("start-screen");
   $("#create-start").value = dateToKey(new Date());
+  $("#create-end").value = DEFAULT_END_DATE;
   $("#create-form").addEventListener("submit", async (event) => {
     event.preventDefault();
+    const startDate = $("#create-start").value;
+    const end = $("#create-end").value;
+    if (end < startDate) { alert("The last date has to be after the first date."); return; }
     const id = newId();
     await storage.save(`trips/${id}`, {
       name: $("#create-name").value.trim(),
-      startDate: $("#create-start").value,
-      weekCount: Number($("#create-count").value),
+      startDate,
+      endDate: end,
       createdAt: Date.now(),
     });
     location.search = `?trip=${id}`;
@@ -203,8 +208,6 @@ function render() {
   renderMe();
   renderBestWeekend();
   renderCalendar();
-  renderRsvp();
-  renderItems();
 }
 
 // "Who are you?"
@@ -229,13 +232,13 @@ function dayStats(key) {
   return stats;
 }
 
-// Works out yes / maybe / no for one weekend (Saturday and Sunday):
-// ✗ on either day = no, ✓ on both = yes, anything else marked = maybe.
+// Works out yes / maybe / no for one weekend (Friday to Sunday):
+// ✗ on any of the days = no, ✓ on all of them = yes, anything else marked = maybe.
 function weekendStats(key) {
-  const sunday = nextDayKey(key);
+  const days = weekendDays(key);
   const stats = { key, yes: [], maybe: [], no: [] };
   for (const person of Object.values(people())) {
-    const answers = [person.dates?.[key], person.dates?.[sunday]];
+    const answers = days.map((day) => person.dates?.[day]);
     if (answers.includes("no")) stats.no.push(person.name);
     else if (answers.every((a) => a === "yes")) stats.yes.push(person.name);
     else if (answers.some(Boolean)) stats.maybe.push(person.name);
@@ -252,14 +255,6 @@ function bestWeekend() {
   }
   return best;
 }
-
-const rsvpButtons = (current) => [
-  ["yes", "Coming"],
-  ["maybe", "Maybe"],
-  ["no", "Can't make it"],
-].map(([value, label]) => `
-  <button type="button" class="answer ${value}" aria-pressed="${current === value}"
-    data-action="answer-rsvp" data-value="${value}" ${iHaveJoined() ? "" : "disabled"}>${label}</button>`).join("");
 
 function nameChips(names, kind) {
   return names.map((name) => `<span class="chip ${kind}">${escapeHTML(name)}</span>`).join("");
@@ -295,7 +290,7 @@ function renderCalendar() {
   const myDates = (iHaveJoined() && people()[me].dates) || {};
   const final = trip.finalWeekend;
   const highlighted = final || bestWeekend()?.key;
-  const highlightDays = highlighted ? [highlighted, nextDayKey(highlighted)] : [];
+  const highlightDays = highlighted ? weekendDays(highlighted) : [];
   const mine = calendarMode === "mine";
 
   $("#calendar-modes").innerHTML = [["mine", "My answers"], ["everyone", "Everyone's answers"]]
@@ -368,73 +363,11 @@ function renderCalendar() {
   }
 }
 
-// "Who's coming?"
-function renderRsvp() {
-  const final = trip.finalWeekend;
-  if (!final) {
-    $("#rsvp-area").innerHTML = `<p class="muted">Once the group locks in a weekend, everyone confirms here.</p>`;
-    return;
-  }
-  // An answer only counts if it was given for the weekend that's locked in now.
-  const answerFor = (person) => (person.rsvp?.weekend === final ? person.rsvp.answer : null);
-  const groups = { yes: [], maybe: [], no: [], none: [] };
-  for (const person of Object.values(people())) groups[answerFor(person) || "none"].push(person.name);
-  const mine = iHaveJoined() ? answerFor(people()[me]) : null;
-
-  const group = (title, names, kind) => names.length
-    ? `<p><strong>${title} (${names.length})</strong></p><div class="chips">${nameChips(names, kind)}</div>` : "";
-
-  $("#rsvp-area").innerHTML = `
-    <p>For <strong>${weekendLabel(final)}</strong>, are you in?</p>
-    <div class="answers">${rsvpButtons(mine)}</div>
-    ${group("Coming", groups.yes, "yes")}
-    ${group("Maybe", groups.maybe, "maybe")}
-    ${group("Can't make it", groups.no, "no")}
-    ${group("Haven't answered", groups.none, "none")}`;
-}
-
-// "Who's bringing what?"
-function renderItems() {
-  const items = Object.entries(trip.items || {}).sort((a, b) => a[1].createdAt - b[1].createdAt);
-  const claimed = items.filter(([, item]) => people()[item.by]).length;
-  $("#item-summary").textContent = items.length
-    ? `${claimed} of ${items.length} things have someone bringing them.`
-    : "Nothing on the list yet. Add what the group needs.";
-
-  $("#item-list").innerHTML = items.map(([id, item]) => {
-    const bringer = people()[item.by];
-    let status;
-    if (bringer && item.by === me) {
-      status = `<span class="chip yes">You're bringing it</span>
-        <button type="button" class="link" data-action="unclaim" data-id="${id}">Undo</button>`;
-    } else if (bringer) {
-      status = `<span class="chip yes">${escapeHTML(bringer.name)}</span>`;
-    } else {
-      status = `<button type="button" data-action="claim" data-id="${id}" ${iHaveJoined() ? "" : "disabled"}>I'll bring it</button>`;
-    }
-    return `
-      <li class="item">
-        <span class="item-text">${escapeHTML(item.text)}</span>
-        <span class="item-status">${status}
-          <button type="button" class="link delete" data-action="delete-item" data-id="${id}" aria-label="Remove ${escapeHTML(item.text)}">✕</button>
-        </span>
-      </li>`;
-  }).join("");
-}
-
 // ---------- Buttons and forms on the plan screen ----------
 
 function setUpTripControls() {
-  $("#item-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const text = $("#item-text").value.trim();
-    if (!text) return;
-    await storage.save(tripPath(`items/${newId()}`), { text, by: null, createdAt: Date.now() });
-    $("#item-text").value = "";
-  });
-
   $("#more-weeks").addEventListener("click", () => {
-    storage.save(tripPath("weekCount"), weekCount(trip) + 4);
+    storage.save(tripPath("endDate"), addDays(endDate(trip), 28));
   });
 
   $("#share-button").addEventListener("click", async () => {
@@ -463,17 +396,9 @@ function setUpTripControls() {
       }
       case "calendar-mode": calendarMode = value; render(); break;
       case "select-day": selectedDay = key; render(); break;
-      case "answer-rsvp":
-        storage.save(tripPath(`people/${me}/rsvp`), { weekend: trip.finalWeekend, answer: value });
-        break;
       case "lock": storage.save(tripPath("finalWeekend"), key); break;
       case "unlock":
         if (confirm("Unlock the weekend so the group can pick again?")) storage.save(tripPath("finalWeekend"), null);
-        break;
-      case "claim": storage.save(tripPath(`items/${id}/by`), me); break;
-      case "unclaim": storage.save(tripPath(`items/${id}/by`), null); break;
-      case "delete-item":
-        if (confirm("Remove this from the list?")) storage.save(tripPath(`items/${id}`), null);
         break;
     }
   });
