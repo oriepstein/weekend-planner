@@ -105,6 +105,27 @@ button.link { border: none; background: none; color: var(--accent); padding: 2px
 .trip-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .trip-header h1 { margin: 0; overflow-wrap: anywhere; }
 
+/* The big title: comic-book letters with a two-color "punch" shadow, tilted slightly. */
+.title {
+  font-family: "Bangers", Impact, "Arial Black", sans-serif;
+  font-weight: 400;
+  font-size: clamp(2.3rem, 7vw, 3.6rem);
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  text-shadow: 3px 3px 0 #f08c00, 6px 6px 0 #d6336c;
+  transform: rotate(-1.5deg);
+  transform-origin: left center;
+  padding: 6px 0 4px;
+}
+
+.subtitle {
+  margin: 10px 0 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #d6336c;
+}
+
 /* Calendar */
 .month { margin: 14px 0 18px; }
 .month h3 { font-size: 1rem; margin: 0 0 8px; }
