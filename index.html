@@ -24,11 +24,11 @@
         <label>What's the trip?
           <input id="create-name" required maxlength="80" placeholder="e.g. Lake house weekend">
         </label>
-        <label>Earliest weekend to consider
+        <label>First date on the calendar
           <input id="create-start" type="date" required>
         </label>
-        <label>How many weekends to choose from
-          <input id="create-count" type="number" min="1" max="26" value="8" required>
+        <label>How many weeks to show
+          <input id="create-count" type="number" min="1" max="52" value="8" required>
         </label>
         <button type="submit" class="primary">Start planning</button>
       </form>
@@ -50,17 +50,16 @@
       <section class="card">
         <h2>Who are you?</h2>
         <div id="me-area"></div>
-        <form id="join-form" class="row">
-          <input id="join-name" required maxlength="40" placeholder="Your name">
-          <button type="submit" class="primary">Join</button>
-        </form>
       </section>
 
       <section class="card">
-        <h2>Which weekends work?</h2>
+        <h2>Which days work?</h2>
         <div id="best-area"></div>
-        <ul id="weekend-list" class="list"></ul>
-        <button id="more-weekends" type="button">Show 4 more weekends</button>
+        <div id="calendar-modes" class="answers"></div>
+        <p id="calendar-help" class="muted small"></p>
+        <div id="calendar"></div>
+        <div id="day-detail"></div>
+        <button id="more-weeks" type="button">Show 4 more weeks</button>
       </section>
 
       <section class="card">

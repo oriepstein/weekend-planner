@@ -2,11 +2,11 @@
 
 A small website a group of friends can use together to plan a weekend away:
 
-- **Which weekends work?** Everyone marks each weekend *Works*, *Maybe* or *Can't*. The site highlights the weekend that suits the most people, and anyone can tap **Lock it in**.
+- **Which days work?** Everyone picks their name from the group's list, then taps days on a calendar: ✓ can make it, ✗ can't, ? not sure. **Everyone's answers** shows how many said what on each day, and tapping a day shows who. The site highlights the weekend (Saturday and Sunday) that suits the most people, and anyone can tap **Lock it in**.
 - **Who's coming?** Once a weekend is locked in, everyone says *Coming*, *Maybe* or *Can't make it*.
 - **Who's bringing what?** A shared list. Anyone can add things, and people tap **I'll bring it** to claim them.
 
-Anyone with a plan's link can see and change it. Friends don't need an account. Each plan gets its own link, so you can run several trips at once.
+Anyone with a plan's link can see and change it. Friends don't need an account. The list of names is at the top of `app.js` (`FRIENDS`); add or remove a line there to change the group. Each plan gets its own link, so you can run several trips at once.
 
 ## What's in this folder
 
@@ -77,7 +77,7 @@ git push -u origin main
 
 1. Open your site and fill in **Start planning**.
 2. Click **Copy link for friends** and send that link to the group chat.
-3. Each friend opens it, types their name once (the browser remembers them), and marks their weekends.
+3. Each friend opens it, taps their name once (the browser remembers them), and marks their days on the calendar.
 
 ## Changing it later
 

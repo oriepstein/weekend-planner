@@ -1,5 +1,21 @@
 import { firebaseConfig } from "./firebase-config.js";
 
+// ---------- The group ----------
+// Everyone picks their name from this list. To add someone, add a line here.
+
+const FRIENDS = [
+  "Legs Diamond",
+  "Dr. Michael Hornycakes",
+  'Mike "The Muz" Bernstein',
+  "O-dog Epstein",
+  'The Honorable Darren "The Blade" Rubin',
+  'Seth "The Medford Menace" Kleinman',
+  "Topher Grace",
+];
+
+// Turns a name into a short id for saving, e.g. "O-dog Epstein" -> "o-dog-epstein".
+const friendId = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
 // ---------- Small helpers ----------
 
 const $ = (selector) => document.querySelector(selector);
@@ -19,7 +35,7 @@ function recall(key) {
 }
 
 // ---------- Dates ----------
-// A weekend is stored by its Saturday, written as "2026-11-07".
+// Each day is stored as text like "2026-11-07". A weekend is named by its Saturday.
 
 function dateToKey(date) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -31,16 +47,31 @@ function keyToDate(key) {
   return new Date(year, month - 1, day);
 }
 
-function weekendKeys(trip) {
-  const saturday = keyToDate(trip.startDate);
-  saturday.setDate(saturday.getDate() + ((6 - saturday.getDay() + 7) % 7));
+// Plans made before the calendar existed counted weekends instead of weeks.
+const weekCount = (trip) => trip.weekCount ?? trip.weekendCount;
+
+// Every day shown on the calendar.
+function dayKeys(trip) {
+  const day = keyToDate(trip.startDate);
   const keys = [];
-  for (let i = 0; i < trip.weekendCount; i++) {
-    keys.push(dateToKey(saturday));
-    saturday.setDate(saturday.getDate() + 7);
+  for (let i = 0; i < weekCount(trip) * 7; i++) {
+    keys.push(dateToKey(day));
+    day.setDate(day.getDate() + 1);
   }
   return keys;
 }
+
+// The Saturdays on the calendar whose Sunday is on it too.
+function weekendKeys(trip) {
+  const days = dayKeys(trip);
+  return days.filter((key, i) => keyToDate(key).getDay() === 6 && i + 1 < days.length);
+}
+
+const nextDayKey = (key) => {
+  const date = keyToDate(key);
+  date.setDate(date.getDate() + 1);
+  return dateToKey(date);
+};
 
 function weekendLabel(key) {
   const saturday = keyToDate(key);
@@ -112,8 +143,14 @@ let storage;
 let tripId = new URLSearchParams(location.search).get("trip");
 let trip = null;   // the whole plan, as last loaded
 let me = null;     // the id of the person using this browser
+let calendarMode = "mine";  // "mine" = tap to mark your days, "everyone" = see the group's answers
+let selectedDay = null;     // the day whose answers are listed under the calendar
 
-const people = () => trip.people || {};
+// Everyone in FRIENDS, with whatever they've saved on this plan.
+const people = () => Object.fromEntries(FRIENDS.map((name) => {
+  const id = friendId(name);
+  return [id, { ...trip.people?.[id], name }];
+}));
 const iHaveJoined = () => Boolean(me && people()[me]);
 const tripPath = (rest = "") => `trips/${tripId}${rest ? "/" + rest : ""}`;
 
@@ -134,7 +171,7 @@ function showStartScreen() {
     await storage.save(`trips/${id}`, {
       name: $("#create-name").value.trim(),
       startDate: $("#create-start").value,
-      weekendCount: Number($("#create-count").value),
+      weekCount: Number($("#create-count").value),
       createdAt: Date.now(),
     });
     location.search = `?trip=${id}`;
@@ -164,38 +201,44 @@ function render() {
   document.title = `${trip.name} – Weekend Planner`;
   $("#trip-name").textContent = trip.name;
   renderMe();
-  renderWeekends();
+  renderBestWeekend();
+  renderCalendar();
   renderRsvp();
   renderItems();
 }
 
 // "Who are you?"
 function renderMe() {
-  const everyone = Object.entries(people()).sort((a, b) => a[1].joinedAt - b[1].joinedAt);
-  const known = iHaveJoined() && people()[me];
-  $("#join-form").hidden = Boolean(known);
-
-  if (known) {
+  if (iHaveJoined()) {
     $("#me-area").innerHTML = `
-      <p>You're <strong>${escapeHTML(known.name)}</strong>.
+      <p>You're <strong>${escapeHTML(people()[me].name)}</strong>.
       <button type="button" class="link" data-action="switch-person">Not you?</button></p>`;
-  } else if (everyone.length) {
+  } else {
     $("#me-area").innerHTML = `
-      <p class="muted">Tap your name, or add it below if you're new.</p>
-      <div class="chips">${everyone.map(([id, person]) =>
+      <p class="muted">Tap your name.</p>
+      <div class="chips">${Object.entries(people()).map(([id, person]) =>
         `<button type="button" data-action="pick-person" data-id="${id}">${escapeHTML(person.name)}</button>`).join("")}
       </div>`;
-  } else {
-    $("#me-area").innerHTML = `<p class="muted">Add your name to get started.</p>`;
   }
 }
 
-// Works out yes / maybe / no for one weekend.
+// Who said ✓ / ? / ✗ for one day, and who hasn't answered.
+function dayStats(key) {
+  const stats = { yes: [], maybe: [], no: [], none: [] };
+  for (const person of Object.values(people())) stats[person.dates?.[key] || "none"].push(person.name);
+  return stats;
+}
+
+// Works out yes / maybe / no for one weekend (Saturday and Sunday):
+// ✗ on either day = no, ✓ on both = yes, anything else marked = maybe.
 function weekendStats(key) {
+  const sunday = nextDayKey(key);
   const stats = { key, yes: [], maybe: [], no: [] };
   for (const person of Object.values(people())) {
-    const answer = person.dates?.[key];
-    if (answer) stats[answer].push(person.name);
+    const answers = [person.dates?.[key], person.dates?.[sunday]];
+    if (answers.includes("no")) stats.no.push(person.name);
+    else if (answers.every((a) => a === "yes")) stats.yes.push(person.name);
+    else if (answers.some(Boolean)) stats.maybe.push(person.name);
   }
   stats.score = stats.yes.length + stats.maybe.length / 2;
   return stats;
@@ -210,23 +253,22 @@ function bestWeekend() {
   return best;
 }
 
-const answerButtons = (kind, current, extra = "") => [
-  ["yes", kind === "date" ? "Works" : "Coming"],
+const rsvpButtons = (current) => [
+  ["yes", "Coming"],
   ["maybe", "Maybe"],
-  ["no", kind === "date" ? "Can't" : "Can't make it"],
+  ["no", "Can't make it"],
 ].map(([value, label]) => `
   <button type="button" class="answer ${value}" aria-pressed="${current === value}"
-    data-action="answer-${kind}" data-value="${value}" ${extra} ${iHaveJoined() ? "" : "disabled"}>${label}</button>`).join("");
+    data-action="answer-rsvp" data-value="${value}" ${iHaveJoined() ? "" : "disabled"}>${label}</button>`).join("");
 
 function nameChips(names, kind) {
   return names.map((name) => `<span class="chip ${kind}">${escapeHTML(name)}</span>`).join("");
 }
 
-// "Which weekends work?"
-function renderWeekends() {
+// The "best weekend so far" box above the calendar.
+function renderBestWeekend() {
   const best = bestWeekend();
   const final = trip.finalWeekend;
-  const myDates = (iHaveJoined() && people()[me].dates) || {};
 
   if (final) {
     $("#best-area").innerHTML = `
@@ -238,22 +280,92 @@ function renderWeekends() {
         ${best.yes.length} can come${best.maybe.length ? `, ${best.maybe.length} maybe` : ""}.
         <button type="button" class="primary" data-action="lock" data-key="${best.key}">Lock it in</button></div>`;
   } else {
-    $("#best-area").innerHTML = `<p class="muted">No answers yet. Mark each weekend: Works, Maybe or Can't.</p>`;
+    $("#best-area").innerHTML = `<p class="muted">No answers yet. Pick your name, then mark the days on the calendar.</p>`;
+  }
+}
+
+const MARKS = { yes: "✓", no: "✗", maybe: "?" };
+// Tapping a day goes: blank → ✓ → ✗ → ? → blank.
+const NEXT_MARK = { none: "yes", yes: "no", no: "maybe", maybe: null };
+
+// The calendar: one grid per month, Sunday to Saturday.
+function renderCalendar() {
+  const days = dayKeys(trip);
+  const shown = new Set(days);
+  const myDates = (iHaveJoined() && people()[me].dates) || {};
+  const final = trip.finalWeekend;
+  const highlighted = final || bestWeekend()?.key;
+  const highlightDays = highlighted ? [highlighted, nextDayKey(highlighted)] : [];
+  const mine = calendarMode === "mine";
+
+  $("#calendar-modes").innerHTML = [["mine", "My answers"], ["everyone", "Everyone's answers"]]
+    .map(([mode, label]) => `<button type="button" class="answer yes" aria-pressed="${calendarMode === mode}"
+      data-action="calendar-mode" data-value="${mode}">${label}</button>`).join("");
+  $("#calendar-help").textContent = !mine
+    ? "Each day shows how many said ✓ ? ✗. Tap a day to see who."
+    : iHaveJoined()
+      ? "Tap a day to mark it: ✓ can make it, then ✗ can't, then ? not sure, then blank again."
+      : "Pick your name above first.";
+
+  // Group the days into months.
+  const months = [];
+  for (const key of days) {
+    const date = keyToDate(key);
+    const monthKey = key.slice(0, 7);
+    if (months.at(-1)?.key !== monthKey) months.push({ key: monthKey, first: new Date(date.getFullYear(), date.getMonth(), 1) });
   }
 
-  $("#weekend-list").innerHTML = weekendKeys(trip).map((key) => {
-    const stats = weekendStats(key);
-    const classes = [key === final && "final", !final && key === best?.key && "best"].filter(Boolean).join(" ");
+  $("#calendar").innerHTML = months.map(({ first }) => {
+    const title = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const cells = Array(first.getDay()).fill(`<span></span>`);
+    const day = new Date(first);
+    while (day.getMonth() === first.getMonth()) {
+      const key = dateToKey(day);
+      const number = day.getDate();
+      day.setDate(number + 1);
+      if (!shown.has(key)) { cells.push(`<span class="day off">${number}</span>`); continue; }
+
+      const classes = ["day", highlightDays.includes(key) && (final ? "final" : "best"), key === selectedDay && !mine && "selected"];
+      let inside;
+      if (mine) {
+        const mark = myDates[key];
+        if (mark) classes.push(mark);
+        inside = `<span class="mark">${MARKS[mark] || ""}</span>`;
+      } else {
+        const stats = dayStats(key);
+        inside = `<span class="counts">${stats.yes.length ? `<b class="yes">${stats.yes.length}✓</b>` : ""}${
+          stats.maybe.length ? `<b class="maybe">${stats.maybe.length}?</b>` : ""}${
+          stats.no.length ? `<b class="no">${stats.no.length}✗</b>` : ""}</span>`;
+      }
+      const action = mine ? "mark-day" : "select-day";
+      const disabled = mine && !iHaveJoined() ? "disabled" : "";
+      cells.push(`<button type="button" class="${classes.filter(Boolean).join(" ")}" data-action="${action}" data-key="${key}" ${disabled}
+        aria-label="${keyToDate(key).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}">
+        <span class="number">${number}</span>${inside}</button>`);
+    }
     return `
-      <li class="${classes}">
-        <div class="weekend-top">
-          <span class="weekend-name">${weekendLabel(key)}</span>
-          <span class="muted small">${stats.yes.length} yes · ${stats.maybe.length} maybe · ${stats.no.length} no</span>
-        </div>
-        <div class="chips">${nameChips(stats.yes, "yes")}${nameChips(stats.maybe, "maybe")}${nameChips(stats.no, "no")}</div>
-        <div class="answers">${answerButtons("date", myDates[key], `data-key="${key}"`)}</div>
-      </li>`;
+      <div class="month">
+        <h3>${title}</h3>
+        <div class="grid">${["S", "M", "T", "W", "T", "F", "S"].map((d) => `<span class="weekday">${d}</span>`).join("")}${cells.join("")}</div>
+      </div>`;
   }).join("");
+
+  // Who said what on the tapped day.
+  if (!mine && selectedDay && shown.has(selectedDay)) {
+    const stats = dayStats(selectedDay);
+    const group = (title, names, kind) => names.length
+      ? `<p class="small"><strong>${title}</strong></p><div class="chips">${nameChips(names, kind)}</div>` : "";
+    $("#day-detail").innerHTML = `
+      <div class="highlight">
+        <p><strong>${keyToDate(selectedDay).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</strong></p>
+        ${group("✓ Can make it", stats.yes, "yes")}
+        ${group("? Not sure", stats.maybe, "maybe")}
+        ${group("✗ Can't", stats.no, "no")}
+        ${group("Haven't answered", stats.none, "none")}
+      </div>`;
+  } else {
+    $("#day-detail").innerHTML = "";
+  }
 }
 
 // "Who's coming?"
@@ -274,7 +386,7 @@ function renderRsvp() {
 
   $("#rsvp-area").innerHTML = `
     <p>For <strong>${weekendLabel(final)}</strong>, are you in?</p>
-    <div class="answers">${answerButtons("rsvp", mine)}</div>
+    <div class="answers">${rsvpButtons(mine)}</div>
     ${group("Coming", groups.yes, "yes")}
     ${group("Maybe", groups.maybe, "maybe")}
     ${group("Can't make it", groups.no, "no")}
@@ -313,21 +425,6 @@ function renderItems() {
 // ---------- Buttons and forms on the plan screen ----------
 
 function setUpTripControls() {
-  $("#join-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const name = $("#join-name").value.trim();
-    if (!name) return;
-    // If that name is already on the plan, treat it as the same person.
-    const existing = Object.entries(people()).find(([, p]) => p.name.toLowerCase() === name.toLowerCase());
-    if (existing) { setMe(existing[0]); }
-    else {
-      const id = newId();
-      await storage.save(tripPath(`people/${id}`), { name, joinedAt: Date.now() });
-      setMe(id);
-    }
-    $("#join-name").value = "";
-  });
-
   $("#item-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const text = $("#item-text").value.trim();
@@ -336,8 +433,8 @@ function setUpTripControls() {
     $("#item-text").value = "";
   });
 
-  $("#more-weekends").addEventListener("click", () => {
-    storage.save(tripPath("weekendCount"), trip.weekendCount + 4);
+  $("#more-weeks").addEventListener("click", () => {
+    storage.save(tripPath("weekCount"), weekCount(trip) + 4);
   });
 
   $("#share-button").addEventListener("click", async () => {
@@ -359,12 +456,13 @@ function setUpTripControls() {
     switch (action) {
       case "pick-person": setMe(id); break;
       case "switch-person": setMe(null); break;
-      case "answer-date": {
-        const current = people()[me]?.dates?.[key];
-        // Tapping the answer you already picked clears it.
-        storage.save(tripPath(`people/${me}/dates/${key}`), current === value ? null : value);
+      case "mark-day": {
+        const current = people()[me]?.dates?.[key] || "none";
+        storage.save(tripPath(`people/${me}/dates/${key}`), NEXT_MARK[current]);
         break;
       }
+      case "calendar-mode": calendarMode = value; render(); break;
+      case "select-day": selectedDay = key; render(); break;
       case "answer-rsvp":
         storage.save(tripPath(`people/${me}/rsvp`), { weekend: trip.finalWeekend, answer: value });
         break;
