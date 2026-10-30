@@ -200,6 +200,7 @@ function setMe(personId) {
 
 function render() {
   renderMe();
+  renderGroup();
   renderBestWeekend();
   renderCalendar();
 }
@@ -231,12 +232,13 @@ function dayStats(key) {
 // ✗ on any of the days = no, ✓ on all of them = yes, anything else marked = maybe.
 function weekendStats(key) {
   const days = weekendDays(key);
-  const stats = { key, yes: [], maybe: [], no: [] };
+  const stats = { key, yes: [], maybe: [], no: [], none: [] };
   for (const person of Object.values(people())) {
     const answers = days.map((day) => person.dates?.[day]);
     if (answers.includes("no")) stats.no.push(person.name);
     else if (answers.every((a) => a === "yes")) stats.yes.push(person.name);
     else if (answers.some(Boolean)) stats.maybe.push(person.name);
+    else stats.none.push(person.name);
   }
   stats.score = stats.yes.length + stats.maybe.length / 2;
   return stats;
@@ -254,7 +256,51 @@ function bestWeekend() {
 // A name in its friend's own color.
 const nameChip = (name) => `<span class="chip person" style="--person: ${colorOf(name)}">${escapeHTML(name)}</span>`;
 
+// A name that hasn't answered yet: grey, with a dashed outline in their color.
+const waitingChip = (name) => `<span class="chip waiting" style="--person: ${colorOf(name)}">${escapeHTML(name)}</span>`;
+
 const nameChips = (names) => names.map(nameChip).join("");
+
+// A heading with a row of names under it, or nothing if there are no names.
+const nameGroup = (title, names, chip = nameChip) => names.length
+  ? `<p class="small group-title"><strong>${title}</strong></p><div class="chips">${names.map(chip).join("")}</div>` : "";
+
+// "Who's said what?": who has answered at all, and who's in for the best weekends.
+function renderGroup() {
+  const everyone = Object.values(people());
+  const daysMarked = (person) => Object.keys(person.dates || {}).length;
+  const answeredCount = everyone.filter(daysMarked).length;
+
+  const rows = everyone.map((person) => {
+    const count = daysMarked(person);
+    return `
+      <li class="who-row">
+        ${count ? nameChip(person.name) : waitingChip(person.name)}
+        <span class="${count ? "small" : "muted small"}">${count ? `marked ${count} day${count === 1 ? "" : "s"}` : "hasn't answered yet"}</span>
+      </li>`;
+  }).join("");
+
+  const top = weekendKeys(trip).map(weekendStats).filter((stats) => stats.score > 0)
+    .sort((a, b) => b.score - a.score || a.key.localeCompare(b.key))
+    .slice(0, 3);
+  const topHTML = top.length
+    ? `<h3>Best weekends so far</h3>
+       <ol class="top-weekends">${top.map((stats) => `
+         <li>
+           <strong>${weekendLabel(stats.key)}</strong>
+           ${nameGroup("✓ In", stats.yes)}
+           ${nameGroup("? Maybe", stats.maybe)}
+           ${nameGroup("✗ Out", stats.no)}
+           ${nameGroup("No answer", stats.none, waitingChip)}
+         </li>`).join("")}
+       </ol>`
+    : "";
+
+  $("#group-area").innerHTML = `
+    <p><strong>${answeredCount} of ${everyone.length}</strong> have answered.</p>
+    <ul class="who-list">${rows}</ul>
+    ${topHTML}`;
+}
 
 // The "best weekend so far" box above the calendar.
 function renderBestWeekend() {
@@ -293,7 +339,7 @@ function renderCalendar() {
     .map(([mode, label]) => `<button type="button" class="answer yes" aria-pressed="${calendarMode === mode}"
       data-action="calendar-mode" data-value="${mode}">${label}</button>`).join("");
   $("#calendar-help").textContent = !mine
-    ? "Each day shows how many said ✓ ? ✗. Tap a day to see who."
+    ? "Each colored dot is a friend who can make that day (a hollow dot means not sure). Tap a day to see names."
     : iHaveJoined()
       ? "Tap a day to mark it: ✓ can make it, then ✗ can't, then ? not sure, then blank again."
       : "Pick your name above first.";
@@ -323,10 +369,13 @@ function renderCalendar() {
         if (mark) classes.push(mark);
         inside = `<span class="mark">${MARKS[mark] || ""}</span>`;
       } else {
-        const stats = dayStats(key);
-        inside = `<span class="counts">${stats.yes.length ? `<b class="yes">${stats.yes.length}✓</b>` : ""}${
-          stats.maybe.length ? `<b class="maybe">${stats.maybe.length}?</b>` : ""}${
-          stats.no.length ? `<b class="no">${stats.no.length}✗</b>` : ""}</span>`;
+        // One dot per friend in their color: filled = can make it, hollow = not sure.
+        const dots = Object.values(people()).map((person) => {
+          const answer = person.dates?.[key];
+          return answer === "yes" || answer === "maybe"
+            ? `<i class="dot ${answer}" style="--person: ${colorOf(person.name)}"></i>` : "";
+        }).join("");
+        inside = `<span class="dots">${dots}</span>`;
       }
       const action = mine ? "mark-day" : "select-day";
       const disabled = mine && !iHaveJoined() ? "disabled" : "";
@@ -344,15 +393,13 @@ function renderCalendar() {
   // Who said what on the tapped day.
   if (!mine && selectedDay && shown.has(selectedDay)) {
     const stats = dayStats(selectedDay);
-    const group = (title, names) => names.length
-      ? `<p class="small"><strong>${title}</strong></p><div class="chips">${nameChips(names)}</div>` : "";
     $("#day-detail").innerHTML = `
       <div class="highlight">
         <p><strong>${keyToDate(selectedDay).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</strong></p>
-        ${group("✓ Can make it", stats.yes)}
-        ${group("? Not sure", stats.maybe)}
-        ${group("✗ Can't", stats.no)}
-        ${group("Haven't answered", stats.none)}
+        ${nameGroup("✓ Can make it", stats.yes)}
+        ${nameGroup("? Not sure", stats.maybe)}
+        ${nameGroup("✗ Can't", stats.no)}
+        ${nameGroup("Haven't answered", stats.none, waitingChip)}
       </div>`;
   } else {
     $("#day-detail").innerHTML = "";
