@@ -5,7 +5,7 @@ A small website a group of friends can use together to plan a weekend away:
 - **Which days work?** Everyone picks their name from the group's list, then taps days on a calendar: ✓ can make it, ✗ can't, ? not sure. **Everyone's answers** shows how many said what on each day, and tapping a day shows who. The site highlights the weekend (Friday to Sunday) that suits the most people, and anyone can tap **Lock it in**.
 - **How long the calendar runs:** from the first date you pick to April 30, 2027, unless you choose another last date when starting a plan. **Show 4 more weeks** adds more.
 
-Anyone with a plan's link can see and change it. Friends don't need an account. The list of names is at the top of `app.js` (`FRIENDS`); add or remove a line there to change the group. Each plan gets its own link, so you can run several trips at once.
+Anyone with a plan's link can see and change it. Friends don't need an account. The list of names is at the top of `app.js` (`FRIENDS`); add or remove a line there to change the group. There's one plan for everyone: the site opens straight onto it, and each friend's name has its own color (`COLORS` in `app.js`).
 
 ## What's in this folder
 
@@ -45,7 +45,7 @@ Firebase is a free Google service that stores the group's answers so everyone se
 6. Firebase shows a block of code with `const firebaseConfig = { ... }`. Copy the values (`apiKey`, `authDomain`, `databaseURL`, `projectId`, `appId`) into the matching lines of `firebase-config.js`.
    If `databaseURL` is missing from that block, copy it from the top of the Realtime Database page (it looks like `https://weekend-planner-xxxx-default-rtdb.firebaseio.com`).
 
-Reload the site: the yellow "Practice mode" note should be gone. Plans you made in practice mode don't carry over, so start a fresh one.
+Reload the site: the yellow "Practice mode" note should be gone. Plans you made in practice mode don't carry over.
 
 > Is it OK that these settings end up on GitHub? Yes. They only tell the site which database to talk to. What people can do is controlled by the rules from step 1, item 4.
 
@@ -74,8 +74,8 @@ git push -u origin main
 
 ## Step 3: Use it with your friends
 
-1. Open your site and fill in **Start planning**.
-2. Click **Copy link for friends** and send that link to the group chat.
+1. Open your site. The very first visit sets up the calendar, running from that day to April 30, 2027.
+2. Send the site's address to the group chat (or click **Copy link for friends**).
 3. Each friend opens it, taps their name once (the browser remembers them), and marks their days on the calendar.
 
 ## Changing it later

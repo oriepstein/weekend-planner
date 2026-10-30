@@ -16,28 +16,13 @@
 
     <p id="loading">Loading…</p>
 
-    <!-- Screen 1: start a new plan -->
-    <section id="start-screen" hidden>
-      <h1>Darren's mud-diving, dog-piling, tag-teaming weekend of fisticuffs and shenanigans</h1>
-      <p class="muted">Let's choose the perfect date</p>
-      <form id="create-form" class="card">
-        <label>First date on the calendar
-          <input id="create-start" type="date" required>
-        </label>
-        <label>Last date on the calendar
-          <input id="create-end" type="date" required>
-        </label>
-        <button type="submit" class="primary">Start planning</button>
-      </form>
-    </section>
-
     <!-- Shown when a link points to a plan that doesn't exist -->
     <section id="missing-screen" hidden>
       <h1>Plan not found</h1>
-      <p>This link doesn't match any plan. Check you copied the whole link, or <a href="./">start a new plan</a>.</p>
+      <p>This link doesn't match any plan. Check you copied the whole link, or <a href="./">open Darren's weekend plan</a>.</p>
     </section>
 
-    <!-- Screen 2: a plan -->
+    <!-- The plan -->
     <section id="trip-screen" hidden>
       <header class="trip-header">
         <div>
@@ -61,8 +46,6 @@
         <div id="day-detail"></div>
         <button id="more-weeks" type="button">Show 4 more weeks</button>
       </section>
-
-      <p class="muted small"><a href="./">Start a different plan</a></p>
     </section>
   </main>
 

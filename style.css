@@ -140,6 +140,9 @@ button.link { border: none; background: none; color: var(--accent); padding: 2px
 .chip.no { background: var(--no); color: var(--no-text); }
 .chip.none { background: var(--none); color: var(--none-text); }
 
+/* A friend's name in their own color (set by app.js as --person). */
+.person { background: var(--person); color: #fff; border-color: var(--person); font-weight: 600; }
+
 .answers { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .answer[aria-pressed="true"].yes { background: var(--yes); color: var(--yes-text); border-color: var(--yes-text); font-weight: 600; }
 .answer[aria-pressed="true"].maybe { background: var(--maybe); color: var(--maybe-text); border-color: var(--maybe-text); font-weight: 600; }

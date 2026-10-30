@@ -13,6 +13,13 @@ const FRIENDS = [
   "Topher Grace",
 ];
 
+// Each friend's color, in the same order as the list above.
+const COLORS = ["#d6336c", "#d9480f", "#2b8a3e", "#1971c2", "#6741d9", "#0b7285", "#9c36b5", "#8d5524"];
+const colorOf = (name) => COLORS[Math.max(0, FRIENDS.indexOf(name)) % COLORS.length];
+
+// There's only one trip, so everyone uses the same plan, saved under this name.
+const MAIN_TRIP_ID = "darrens-weekend";
+
 // Turns a name into a short id for saving, e.g. "O-dog Epstein" -> "o-dog-epstein".
 const friendId = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
@@ -24,8 +31,6 @@ const $ = (selector) => document.querySelector(selector);
 const escapeHTML = (text) =>
   String(text ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-
-const newId = () => Math.random().toString(36).slice(2, 10);
 
 function remember(key, value) {
   try { localStorage.setItem(key, value); } catch { /* private window: ignore */ }
@@ -47,7 +52,7 @@ function keyToDate(key) {
   return new Date(year, month - 1, day);
 }
 
-// The calendar's last day, unless the person starting a plan picks another.
+// The calendar's last day.
 const DEFAULT_END_DATE = "2027-04-30";
 
 // Moves a day forward (or back, with a negative number) by some days.
@@ -141,11 +146,13 @@ function practiceStorage() {
 // ---------- App state ----------
 
 let storage;
-let tripId = new URLSearchParams(location.search).get("trip");
+// Links sent out before there was one fixed plan end in "?trip=...", so they still open that plan.
+let tripId = new URLSearchParams(location.search).get("trip") || MAIN_TRIP_ID;
 let trip = null;   // the whole plan, as last loaded
 let me = null;     // the id of the person using this browser
 let calendarMode = "mine";  // "mine" = tap to mark your days, "everyone" = see the group's answers
 let selectedDay = null;     // the day whose answers are listed under the calendar
+let settingUpPlan = false;  // true while the first visit saves the plan's dates
 
 // Everyone in FRIENDS, with whatever they've saved on this plan.
 const people = () => Object.fromEntries(FRIENDS.map((name) => {
@@ -156,30 +163,9 @@ const iHaveJoined = () => Boolean(me && people()[me]);
 const tripPath = (rest = "") => `trips/${tripId}${rest ? "/" + rest : ""}`;
 
 function show(id) {
-  for (const screen of ["loading", "start-screen", "missing-screen", "trip-screen"]) {
+  for (const screen of ["loading", "missing-screen", "trip-screen"]) {
     $("#" + screen).hidden = screen !== id;
   }
-}
-
-// ---------- Start screen ----------
-
-function showStartScreen() {
-  show("start-screen");
-  $("#create-start").value = dateToKey(new Date());
-  $("#create-end").value = DEFAULT_END_DATE;
-  $("#create-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const startDate = $("#create-start").value;
-    const end = $("#create-end").value;
-    if (end < startDate) { alert("The last date has to be after the first date."); return; }
-    const id = newId();
-    await storage.save(`trips/${id}`, {
-      startDate,
-      endDate: end,
-      createdAt: Date.now(),
-    });
-    location.search = `?trip=${id}`;
-  });
 }
 
 // ---------- Plan screen ----------
@@ -189,6 +175,17 @@ function openTrip() {
   setUpTripControls();
   storage.listen(tripId, (data) => {
     trip = data;
+    // The very first visit sets up the plan: the calendar runs from that day to DEFAULT_END_DATE.
+    // (Saving each part separately never wipes out answers someone else saved meanwhile.)
+    // Wait until both dates are saved before drawing, or the calendar has no end.
+    if (tripId === MAIN_TRIP_ID && !(trip?.startDate && trip?.endDate)) {
+      if (!settingUpPlan) {
+        settingUpPlan = true;
+        if (!trip?.startDate) storage.save(tripPath("startDate"), dateToKey(new Date()));
+        if (!trip?.endDate) storage.save(tripPath("endDate"), DEFAULT_END_DATE);
+      }
+      return;
+    }
     if (!trip) { show("missing-screen"); return; }
     show("trip-screen");
     render();
@@ -211,13 +208,14 @@ function render() {
 function renderMe() {
   if (iHaveJoined()) {
     $("#me-area").innerHTML = `
-      <p>You're <strong>${escapeHTML(people()[me].name)}</strong>.
+      <p>You're ${nameChip(people()[me].name)}
       <button type="button" class="link" data-action="switch-person">Not you?</button></p>`;
   } else {
     $("#me-area").innerHTML = `
       <p class="muted">Tap your name.</p>
       <div class="chips">${Object.entries(people()).map(([id, person]) =>
-        `<button type="button" data-action="pick-person" data-id="${id}">${escapeHTML(person.name)}</button>`).join("")}
+        `<button type="button" class="person" style="--person: ${colorOf(person.name)}"
+          data-action="pick-person" data-id="${id}">${escapeHTML(person.name)}</button>`).join("")}
       </div>`;
   }
 }
@@ -253,9 +251,10 @@ function bestWeekend() {
   return best;
 }
 
-function nameChips(names, kind) {
-  return names.map((name) => `<span class="chip ${kind}">${escapeHTML(name)}</span>`).join("");
-}
+// A name in its friend's own color.
+const nameChip = (name) => `<span class="chip person" style="--person: ${colorOf(name)}">${escapeHTML(name)}</span>`;
+
+const nameChips = (names) => names.map(nameChip).join("");
 
 // The "best weekend so far" box above the calendar.
 function renderBestWeekend() {
@@ -345,15 +344,15 @@ function renderCalendar() {
   // Who said what on the tapped day.
   if (!mine && selectedDay && shown.has(selectedDay)) {
     const stats = dayStats(selectedDay);
-    const group = (title, names, kind) => names.length
-      ? `<p class="small"><strong>${title}</strong></p><div class="chips">${nameChips(names, kind)}</div>` : "";
+    const group = (title, names) => names.length
+      ? `<p class="small"><strong>${title}</strong></p><div class="chips">${nameChips(names)}</div>` : "";
     $("#day-detail").innerHTML = `
       <div class="highlight">
         <p><strong>${keyToDate(selectedDay).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</strong></p>
-        ${group("✓ Can make it", stats.yes, "yes")}
-        ${group("? Not sure", stats.maybe, "maybe")}
-        ${group("✗ Can't", stats.no, "no")}
-        ${group("Haven't answered", stats.none, "none")}
+        ${group("✓ Can make it", stats.yes)}
+        ${group("? Not sure", stats.maybe)}
+        ${group("✗ Can't", stats.no)}
+        ${group("Haven't answered", stats.none)}
       </div>`;
   } else {
     $("#day-detail").innerHTML = "";
@@ -411,4 +410,4 @@ try {
   throw error;
 }
 $("#practice-banner").hidden = storage.online;
-if (tripId) openTrip(); else showStartScreen();
+openTrip();
