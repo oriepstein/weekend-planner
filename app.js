@@ -174,7 +174,6 @@ function showStartScreen() {
     if (end < startDate) { alert("The last date has to be after the first date."); return; }
     const id = newId();
     await storage.save(`trips/${id}`, {
-      name: $("#create-name").value.trim(),
       startDate,
       endDate: end,
       createdAt: Date.now(),
@@ -203,8 +202,6 @@ function setMe(personId) {
 }
 
 function render() {
-  document.title = `${trip.name} – Weekend Planner`;
-  $("#trip-name").textContent = trip.name;
   renderMe();
   renderBestWeekend();
   renderCalendar();
